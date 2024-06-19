@@ -7,23 +7,23 @@ import {
   Grid,
   InputBase,
   styled,
-  Typography,
+  useMediaQuery,
 } from "@mui/material";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { SelectChangeEvent } from "@mui/material/Select";
+import { useCallback, useEffect, useState } from "react";
+import Header from "./components/Header";
 import TodoItem from "./components/TodoItem";
+import TodoItemModal from "./components/TodoItemModal";
 import useTodoListStore from "./store/TodoList";
-import { useState } from "react";
+import { TodoItemProps, TodoStatus } from "./types";
 
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
   borderRadius: theme.shape.borderRadius,
   backgroundColor: "#eceff8",
-  // "&:hover": {
-  //   backgroundColor: "#cecece",
-  // },
   marginLeft: 0,
   width: "100%",
   [theme.breakpoints.up("sm")]: {
@@ -60,92 +60,140 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 }));
 
 function App() {
-  const todoList = useTodoListStore((state) => state.todoList);
-  const [age, setAge] = useState<string | number>("all");
+  const {
+    todoList,
+    filterList,
+    getFilterList,
+    deleteTodo,
+    addTodo,
+    updateTodo,
+  } = useTodoListStore((state) => state);
+  const matches = useMediaQuery("(min-width:600px)");
+  const [statusFilter, setStatusFilter] = useState<TodoStatus | "all">("all");
+  const [searchingValue, setSearchingValue] = useState<string>("");
+
+  const handleChange = (event: SelectChangeEvent<typeof statusFilter>) => {
+    setStatusFilter(event.target.value as typeof statusFilter);
+  };
+
+  //status filter
   const [open, setOpen] = useState(false);
+  const handleClose = () => setOpen(false);
+  const handleOpen = () => setOpen(true);
 
-  const handleChange = (event: SelectChangeEvent<typeof age>) => {
-    setAge(event.target.value);
-  };
+  //todo add modal
+  const [openAddModal, setOpenAddModal] = useState(false);
+  const handleOpenAddModal = () => setOpenAddModal(true);
+  const handleCloseAddModal = () => setOpenAddModal(false);
 
-  const handleClose = () => {
-    setOpen(false);
-  };
+  //todo update modal
+  const [openUpdateModal, setOpenUpdateModal] = useState(false);
+  const handleOpenUpdateModal = () => setOpenUpdateModal(true);
+  const handleCloseUpdateModal = () => setOpenUpdateModal(false);
 
-  const handleOpen = () => {
-    setOpen(true);
-  };
+  useEffect(() => {
+    getFilterList({ searchingValue, status: statusFilter });
+  }, [searchingValue, statusFilter, getFilterList, todoList]);
+
+  const handleAddTodo = useCallback(
+    (payload: TodoItemProps) => {
+      addTodo(payload);
+      handleCloseAddModal();
+    },
+    [addTodo]
+  );
+
+  const handleUpdateTodo = useCallback(
+    (payload: TodoItemProps) => {
+      updateTodo(payload);
+      handleCloseUpdateModal();
+    },
+    [updateTodo]
+  );
+
+  const handleDeleteTodo = useCallback(
+    (id: string) => {
+      deleteTodo(id);
+    },
+    [deleteTodo]
+  );
 
   return (
     <>
+      <Header />
       <Container sx={{ position: "relative" }}>
-        <Box
-          sx={{
-            height: "100px",
-            position: "sticky",
-            top: "0",
-            left: "0",
-            background: "#eceff8",
-            display: "flex",
-            alignItems: "center",
-            padding: "20px",
-          }}
-        >
-          <Typography variant="h5" fontWeight={"bold"}>
-            Hi there ! How are you doing today ?
-          </Typography>
-        </Box>
         <Box
           sx={{
             display: "flex",
             paddingY: "20px",
             justifyContent: "end",
-            alignItems: "center",
+            alignItems: matches ? "center" : "end",
+            flexDirection: matches ? "row" : "column",
           }}
         >
-          {/* <Box display={"flex"} alignItems={"center"}> */}
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
             </SearchIconWrapper>
             <StyledInputBase
               placeholder="Search…"
-              inputProps={{ "aria-label": "search" }}
+              value={searchingValue}
+              onChange={(e) => setSearchingValue(e.target.value)}
             />
           </Search>
           <FormControl sx={{ m: 1, minWidth: 120 }}>
-            <InputLabel id="demo-controlled-open-select-label">
-              Filter
-            </InputLabel>
+            <InputLabel>Filter</InputLabel>
             <Select
-              labelId="demo-controlled-open-select-label"
-              id="demo-controlled-open-select"
               open={open}
               onClose={handleClose}
               onOpen={handleOpen}
-              value={age}
+              value={statusFilter}
               label="Filter"
               onChange={handleChange}
               size="small"
+              defaultValue="all"
             >
               <MenuItem value={"all"}>All</MenuItem>
               <MenuItem value={"todo"}>Todo</MenuItem>
               <MenuItem value={"completed"}>Completed</MenuItem>
+              <MenuItem value={"uncompleted"}>Un Completed</MenuItem>
             </Select>
           </FormControl>
-          <Button variant="contained" endIcon={<AddIcon />}>
+          <Button
+            variant="contained"
+            endIcon={<AddIcon />}
+            onClick={() => handleOpenAddModal()}
+          >
             New Task
           </Button>
-          {/* </Box> */}
         </Box>
-        <Grid container gap={2}>
-          {todoList.map((item, index) => (
-            <Grid item xs={12} md={4} lg={3}>
-              <TodoItem item={item} key={index} />
+        <Grid container>
+          {filterList.map((item, index) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} p={1}>
+              <TodoItem
+                item={item}
+                key={index}
+                openModal={handleOpenUpdateModal}
+                handleDelete={handleDeleteTodo}
+              />
             </Grid>
           ))}
         </Grid>
       </Container>
+      <TodoItemModal
+        mode="add"
+        handleSubmit={(payload) => handleAddTodo(payload)}
+        title="Create your new task"
+        handleClose={handleCloseAddModal}
+        open={openAddModal}
+      />
+      <TodoItemModal
+        mode="update"
+        handleSubmit={(payload) => handleUpdateTodo(payload)}
+        title="Update your task"
+        handleClose={handleCloseUpdateModal}
+        open={openUpdateModal}
+      />
     </>
   );
 }
